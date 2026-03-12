@@ -2,7 +2,7 @@
   "name": "stellar-kit-studio",
   "displayName": "Stellar Kit Studio",
   "description": "Kit Studio by Stellar Kit — Build, deploy, and manage Soroban smart contracts on Stellar directly from VS Code. One-click deploy, transaction simulation, and integrated CLI workflows.",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "publisher": "0xVida",
   "icon": "icon.png",
   "repository": {
@@ -26,7 +26,7 @@
     "developer-tools"
   ],
   "activationEvents": [],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -185,7 +185,6 @@
           "default": "https://soroban-testnet.stellar.org:443",
           "description": "Stellar RPC endpoint URL for transaction simulation"
         },
-
         "stellarSuite.useLocalCli": {
           "type": "boolean",
           "default": true,
@@ -215,10 +214,12 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run package-ext",
     "compile": "tsc -p ./",
     "lint": "tsc --noEmit",
-    "package": "npm run compile && vsce package",
+    "package": "vsce package",
+    "package-ext": "npm run compile && npm run bundle",
+    "bundle": "esbuild ./out/extension.js --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node scripts/test-templates.js",
@@ -228,8 +229,8 @@
   "devDependencies": {
     "@types/node": "^20.19.33",
     "@types/vscode": "^1.80.0",
+    "esbuild": "^0.20.2",
     "typedoc": "^0.25.0",
     "typescript": "^5.0.0"
-  },
-  "dependencies": {}
+  }
 }

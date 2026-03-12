@@ -1,6 +1,6 @@
 # Kit Studio by Stellar Kit
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/0xVida.stellar-kit?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=0xVida.stellar-kit-studio)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/0xVida.stellar-kit-studio?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=0xVida.stellar-kit-studio)
 [![License](https://img.shields.io/github/license/0xVida/stellar-suite?style=flat-square)](LICENSE.md)
 [![Stellar](https://img.shields.io/badge/Stellar-Soroban-black?style=flat-square&logo=stellar)](https://stellar.org)
 

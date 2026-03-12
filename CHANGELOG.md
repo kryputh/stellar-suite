@@ -2,10 +2,27 @@
 
 All notable changes to the **Kit Studio** extension will be documented in this file.
 
-## [0.1.3] - 2026-03-09
+## [0.1.3] - 2026-03-12
+
+### Added
+- **Performance Optimization:** Successfully bundled the extension into a single file, resulting in faster load times and a much smaller package.
+
+### Changed
+- **Smart Function Selection:** You don't have to manually type function names anymore we now fetch the contract interface directly from the network, so you just pick the function you want to run or simulate
+- **Improved Argument Prompting:** After you pick a function we'll walk you through each parameter it needs showing you exactly what types it expects (like Symbols, Addresses or Vecs)
+- **Network Passphrase Support:** Added a "Network Passphrase" setting to fix RPC connection errors. Everything (Simulate, Run, Info) now works smoothly with custom RPC endpoints
+- **Cleaner Sidebar UI:** We decluttered the sidebar by removing the bulky functions list. All functions are now tucked into the "Simulate" and "Run" dropdowns. We also polished the layout with left-aligned buttons for a more professional feel
+- **Copy-to-Clipboard:** Click any Contract ID to copy it instantly. No more emojis—just a clean, functional UI
+
+### Fixed
+- **Contract Optimization:** The "Optimize" button targets the right contract now.
+- **Deployment History:** The "Clear" button in deployments is working again, including a helpful confirmation modal so you don't delete history by accident
+
+## [0.1.0] - 2026-03-09
 
 ### Changed
 - **Rebranding:** Logo, theme system updated and backward compatibility maintained and extension renamed to Kit Studio while Stellar Kit remains the distributor
+[ext name was updated to stellar-kit-studio so version is reset to 0.1.0]
 
 ## [0.1.2] - 2026-03-02
 
