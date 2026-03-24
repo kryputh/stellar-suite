@@ -145,6 +145,24 @@ const Index = () => {
     setTimeout(() => addLog("success", `✓ Result: ["Hello", "Dev"]`), 800);
   }, [addLog]);
 
+  useEffect(() => {
+    const onBuild = () => handleCompile();
+    const onDeploy = () => handleDeploy();
+    const onTest = () => handleTest();
+
+    window.addEventListener("ide:build-contract", onBuild);
+    window.addEventListener("ide:deploy-contract", onDeploy);
+    window.addEventListener("ide:run-tests", onTest);
+
+    return () => {
+      window.removeEventListener("ide:build-contract", onBuild);
+      window.removeEventListener("ide:deploy-contract", onDeploy);
+      window.removeEventListener("ide:run-tests", onTest);
+    };
+  }, [handleCompile, handleDeploy, handleTest]);
+
+  const { content, language } = getActiveContent();
+
   // Tabs with unsaved markers
   const tabsWithStatus = openTabs.map((t) => ({
     ...t,
