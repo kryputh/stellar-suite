@@ -1,16 +1,10 @@
-node_modules/
-out/
-out-test/
-issue-details/
-frontend-issues/
-stellar-suite/
+extension/node_modules/
+extension/out/
+extension/out-test/
 .vscode-test/
 *.vsix
 .DS_Store
 *.log
-ISSUES.md
-BUILD.md
-pr.md
 .env
 .env.local
 stellar-suite-*.vsix
@@ -24,3 +18,8 @@ frontend/bun.lockb
 
 # Generated test snapshots (regenerate with cargo test)
 **/test_snapshots/
+
+extension/templates/*/target/
+extension/templates/*/.soroban/
+extension/templates/*/Cargo.lock
+extension/templates/**/*.wasm
