@@ -1,6 +1,9 @@
-import React, { Suspense, useRef } from 'react';
+import React, { Suspense, useRef, useEffect } from 'react';
 import Editor, { OnMount, OnChange } from '@monaco-editor/react';
 import { useFileStore } from '@/store/useFileStore';
+import { useDiagnosticsStore } from '@/store/useDiagnosticsStore';
+import type { FileNode } from '@/lib/sample-contracts';
+import type * as Monaco from 'monaco-editor';
 
 interface CodeEditorProps {
   onCursorChange?: (line: number, col: number) => void;
@@ -9,10 +12,13 @@ interface CodeEditorProps {
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ onCursorChange, onSave }) => {
   const { activeTabPath, files, updateFileContent } = useFileStore();
+  const { diagnostics } = useDiagnosticsStore();
   const rustProviderRegistered = useRef(false);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
 
   const activeFile = React.useMemo(() => {
-    const findNode = (nodes: any[], pathParts: string[]): any | null => {
+    const findNode = (nodes: FileNode[], pathParts: string[]): FileNode | null => {
       for (const node of nodes) {
         if (node.name === pathParts[0]) {
           if (pathParts.length === 1) return node;
@@ -30,7 +36,41 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ onCursorChange, onSave }) => {
     }
   };
 
+  // Apply Monaco markers whenever diagnostics or active file changes
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+
+    const virtualId = activeTabPath.join("/");
+    const fileDiags = diagnostics.filter((d) => d.fileId === virtualId);
+
+    const severityMap: Record<string, Monaco.MarkerSeverity> = {
+      error: monaco.MarkerSeverity.Error,
+      warning: monaco.MarkerSeverity.Warning,
+      info: monaco.MarkerSeverity.Info,
+      hint: monaco.MarkerSeverity.Hint,
+    };
+
+    const markers: Monaco.editor.IMarkerData[] = fileDiags.map((d) => ({
+      severity: severityMap[d.severity] ?? monaco.MarkerSeverity.Error,
+      startLineNumber: d.line,
+      startColumn: d.column,
+      endLineNumber: d.endLine,
+      endColumn: d.endColumn,
+      message: d.code ? `[${d.code}] ${d.message}` : d.message,
+      source: "cargo",
+    }));
+
+    const model = editorRef.current?.getModel();
+    if (model) {
+      monaco.editor.setModelMarkers(model, "cargo", markers);
+    }
+  }, [diagnostics, activeTabPath]);
+
   const handleEditorDidMount: OnMount = (editor, monaco) => {
+    monacoRef.current = monaco;
+    editorRef.current = editor;
+
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       onSave?.();
     });
