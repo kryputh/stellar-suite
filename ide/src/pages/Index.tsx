@@ -12,21 +12,13 @@ import { useDiagnosticsStore } from "@/store/useDiagnosticsStore";
 import { parseMixedOutput } from "@/utils/cargoParser";
 import { createStreamProcessor, readCompileResponse } from "@/utils/compileStream";
 import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  FolderTree,
-  Rocket,
-  X,
-  FileText,
-  Terminal as TerminalIcon,
+  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
+  FolderTree, Rocket, X, FileText, Terminal as TerminalIcon,
 } from "lucide-react";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+
+const cloneFiles = (files: FileNode[]): FileNode[] =>
+  JSON.parse(JSON.stringify(files));
 
 const COMPILE_API_URL = import.meta.env.VITE_COMPILE_API_URL ?? "/api/compile";
 
@@ -88,6 +80,16 @@ const Index = () => {
 
   const { setDiagnostics, clearDiagnostics } = useDiagnosticsStore();
 
+  useEffect(() => {
+    loadIdentities();
+  }, [loadIdentities]);
+
+const Index = () => {
+  const [files, setFiles] = useState<FileNode[]>(() => cloneFiles(sampleContracts));
+  const [openTabs, setOpenTabs] = useState<TabInfo[]>([
+    { path: ["hello_world", "lib.rs"], name: "lib.rs" },
+  ]);
+  const [activeTabPath, setActiveTabPath] = useState<string[]>(["hello_world", "lib.rs"]);
   const [terminalExpanded, setTerminalExpanded] = useState(true);
   const [terminalOutput, setTerminalOutput] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
@@ -95,8 +97,29 @@ const Index = () => {
   const [showExplorer, setShowExplorer] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set());
   const [saveStatus, setSaveStatus] = useState("");
   const [mobilePanel, setMobilePanel] = useState<"none" | "explorer" | "interact">("none");
+   const [isExplorerDragActive, setIsExplorerDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
+
+  // Track saved state
+  const savedContentRef = useRef<Record<string, string>>({});
+
+  // Initialize saved content
+  useEffect(() => {
+    const init = (nodes: FileNode[], path: string[]) => {
+      for (const node of nodes) {
+        const p = [...path, node.name].join("/");
+        if (node.type === "file" && node.content) {
+          savedContentRef.current[p] = node.content;
+        }
+        if (node.children) init(node.children, [...path, node.name]);
+      }
+    };
+    init(files, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -132,18 +155,56 @@ const Index = () => {
     [addTab]
   );
 
-  const handleTabClose = useCallback(
-    (path: string[]) => {
-      closeTab(path);
-    },
-    [closeTab]
-  );
+  const handleTabClose = useCallback((path: string[]) => {
+    const key = path.join("/");
+    setOpenTabs((prev) => {
+      const next = prev.filter((t) => t.path.join("/") !== key);
+      if (activeTabPath.join("/") === key && next.length > 0) {
+        setActiveTabPath(next[next.length - 1].path);
+      }
+      return next;
+    });
+    // Remove unsaved marker
+    setUnsavedFiles((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, [activeTabPath]);
+
+  const handleContentChange = useCallback((newContent: string) => {
+    const key = activeTabPath.join("/");
+    setFiles((prev) => {
+      const next = cloneFiles(prev);
+      const file = findNode(next, activeTabPath);
+      if (file) file.content = newContent;
+      return next;
+    });
+    // Mark unsaved
+    setUnsavedFiles((prev) => {
+      if (savedContentRef.current[key] !== newContent) {
+        return new Set(prev).add(key);
+      }
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, [activeTabPath]);
 
   const handleSave = useCallback(() => {
-    markSaved(activeTabPath);
+    const key = activeTabPath.join("/");
+    const file = findNode(files, activeTabPath);
+    if (file?.content !== undefined) {
+      savedContentRef.current[key] = file.content;
+    }
+    setUnsavedFiles((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setSaveStatus("Saved");
     setTimeout(() => setSaveStatus(""), 2000);
-  }, [activeTabPath, markSaved]);
+  }, [activeTabPath, files]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -190,6 +251,38 @@ const Index = () => {
           output.trim() || `Build request failed with status ${response.status}`
         );
       }
+      return next;
+    });
+  }, [activeTabPath]);
+
+  const handleRenameNode = useCallback((path: string[], newName: string) => {
+    const oldKey = path.join("/");
+    const newPath = [...path.slice(0, -1), newName];
+    const newKey = newPath.join("/");
+
+    setFiles((prev) => {
+      const next = cloneFiles(prev);
+      const node = findNode(next, path);
+      if (node) node.name = newName;
+      return next;
+    });
+
+    // Update open tabs
+    setOpenTabs((prev) =>
+      prev.map((t) => {
+        const tKey = t.path.join("/");
+        if (tKey === oldKey || tKey.startsWith(oldKey + "/")) {
+          const updated = [...newPath, ...t.path.slice(path.length)];
+          return { ...t, path: updated, name: updated[updated.length - 1] };
+        }
+        return t;
+      })
+    );
+
+    // Update active tab
+    if (activeTabPath.join("/") === oldKey || activeTabPath.join("/").startsWith(oldKey + "/")) {
+      setActiveTabPath([...newPath, ...activeTabPath.slice(path.length)]);
+    }
 
       const parsed = parseMixedOutput(output, contractName);
       setDiagnostics(parsed);
@@ -241,6 +334,8 @@ const Index = () => {
     }, 1200);
   }, [appendTerminalOutput]);
 
+  const { activeIdentity } = useIdentityStore();
+
   const handleInvoke = useCallback(
     (fn: string, args: string) => {
       setTerminalExpanded(true);
@@ -271,14 +366,31 @@ const Index = () => {
     };
   }, [handleCompile, handleDeploy, handleTest]);
 
-  const getActiveContent = () => {
-    const activeFile = findNode(files, activeTabPath);
+  const handleExplorerDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setIsExplorerDragActive(true);
+  }, []);
 
-    return {
-      content: activeFile?.content || "",
-      language: activeFile?.language || "rust",
-    };
-  };
+  const handleExplorerDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsExplorerDragActive(false);
+    }
+  }, []);
+
+  const handleExplorerDrop = useCallback(async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
+    setIsExplorerDragActive(false);
+
+    try {
+      const dropped = await readDropPayload(event.dataTransfer);
+      const { nodes, uploadedFiles, skippedFiles, totalBytes } = await mapDroppedEntriesToTree(dropped);
 
   const { language } = getActiveContent();
 
@@ -308,11 +420,7 @@ const Index = () => {
             className="p-2 text-muted-foreground transition-colors hover:text-foreground"
             title="Toggle Explorer"
           >
-            {showExplorer ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
+            {showExplorer ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
         </div>
 
@@ -335,19 +443,20 @@ const Index = () => {
                 files={files}
                 onFileSelect={handleFileSelect}
                 activeFilePath={activeTabPath}
-                onCreateFile={(parent, name) => createFile(parent, name)}
-                onCreateFolder={createFolder}
-                onDeleteNode={deleteNode}
-                onRenameNode={renameNode}
+                onCreateFile={handleCreateFile}
+                onCreateFolder={handleCreateFolder}
+                onDeleteNode={handleDeleteNode}
+                onRenameNode={handleRenameNode}
+                isDragActive={isExplorerDragActive}
+                onDragEnter={handleExplorerDragEnter}
+                onDragOver={handleExplorerDragOver}
+                onDragLeave={handleExplorerDragLeave}
+                onDrop={handleExplorerDrop}
               />
             </div>
-            <div
-              className="flex-1 bg-background/60"
-              onClick={() => setMobilePanel("none")}
-            />
+            <div className="flex-1 bg-background/60" onClick={() => setMobilePanel("none")} />
           </div>
         )}
-
         {mobilePanel === "interact" && (
           <div className="absolute inset-0 z-30 flex justify-end md:hidden">
             <div
@@ -374,26 +483,25 @@ const Index = () => {
 
         <div className="flex flex-1 overflow-hidden">
           <ResizablePanelGroup direction="horizontal" autoSaveId="ide-main-layout">
+            
             {showExplorer && (
               <>
-                <ResizablePanel
-                  id="explorer"
-                  order={1}
-                  defaultSize={20}
-                  minSize={10}
-                  maxSize={40}
-                  className="hidden md:block"
-                >
+                <ResizablePanel id="explorer" order={1} defaultSize={20} minSize={10} maxSize={40} className="hidden md:block">
                   <div className="h-full w-full overflow-hidden border-r border-border bg-sidebar">
-                    <FileExplorer
-                      files={files}
-                      onFileSelect={handleFileSelect}
-                      activeFilePath={activeTabPath}
-                      onCreateFile={(parent, name) => createFile(parent, name)}
-                      onCreateFolder={createFolder}
-                      onDeleteNode={deleteNode}
-                      onRenameNode={renameNode}
-                    />
+                     <FileExplorer
+                files={files}
+                onFileSelect={(path, file) => { handleFileSelect(path, file); }}
+                activeFilePath={activeTabPath}
+                onCreateFile={handleCreateFile}
+                onCreateFolder={handleCreateFolder}
+                onDeleteNode={handleDeleteNode}
+                onRenameNode={handleRenameNode}
+                isDragActive={isExplorerDragActive}
+                onDragEnter={handleExplorerDragEnter}
+                onDragOver={handleExplorerDragOver}
+                onDragLeave={handleExplorerDragLeave}
+                onDrop={handleExplorerDrop}
+              />
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle className="hidden md:flex" />
@@ -456,6 +564,7 @@ const Index = () => {
                     />
                   </div>
                 )}
+
               </ResizablePanelGroup>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -473,11 +582,7 @@ const Index = () => {
               className="p-2 text-muted-foreground transition-colors hover:text-foreground"
               title="Toggle Panel"
             >
-              {showPanel ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
+              {showPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
             </button>
           </div>
         </div>
@@ -489,10 +594,6 @@ const Index = () => {
           line={cursorPos.line}
           col={cursorPos.col}
           network={network}
-          horizonUrl={horizonUrl}
-          customRpcUrl={customRpcUrl}
-          onNetworkChange={setNetwork}
-          onCustomRpcUrlChange={setCustomRpcUrl}
           unsavedCount={unsavedFiles.size}
         />
       </div>
@@ -526,7 +627,6 @@ const Index = () => {
             <FolderTree className="h-4 w-4" />
             Explorer
           </button>
-
           <button
             onClick={() => setMobilePanel("none")}
             className={`flex-1 flex flex-col items-center gap-0.5 border-t-2 py-2.5 text-[10px] font-medium transition-colors ${
@@ -538,7 +638,6 @@ const Index = () => {
             <FileText className="h-4 w-4" />
             Editor
           </button>
-
           <button
             onClick={() =>
               setMobilePanel(mobilePanel === "interact" ? "none" : "interact")
@@ -552,7 +651,6 @@ const Index = () => {
             <Rocket className="h-4 w-4" />
             Interact
           </button>
-
           <button
             onClick={() => {
               setTerminalExpanded(!terminalExpanded);
